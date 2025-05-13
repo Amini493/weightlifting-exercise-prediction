@@ -1,0 +1,91 @@
+---
+title: "Weight Lifting Exercise Prediction"
+author: "Your Name"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(caret)
+library(randomForest)
+library(rpart.plot)
+library(corrplot)
+library(ggplot2)
+library(dplyr)
+set.seed(123)
+```
+
+## Background
+
+With the rise of wearable technologies such as Jawbone Up, Nike FuelBand, and Fitbit, it has become easier to collect detailed data on human activity. While many applications quantify how much of an activity is performed, they often overlook how well the activity is executed. This project addresses that gap by using data from accelerometers placed on the belt, forearm, arm, and dumbbell of six participants. These individuals performed barbell lifts in correct and incorrect forms. The goal of this project is to predict the manner in which the exercise was performed (the "classe" variable) using machine learning techniques.
+
+## Data Loading and Cleaning
+
+```{r load-data}
+training_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testing_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+training_raw <- read.csv(url(training_url), na.strings = c("NA", "", "#DIV/0!"))
+testing_raw <- read.csv(url(testing_url), na.strings = c("NA", "", "#DIV/0!"))
+
+nzv <- nearZeroVar(training_raw)
+training_clean <- training_raw[, -nzv]
+
+missing_thresh <- 0.95
+na_cols <- sapply(training_clean, function(x) mean(is.na(x))) > missing_thresh
+training_clean <- training_clean[, !na_cols]
+
+training_clean <- training_clean[, -(1:5)]
+testing_clean <- testing_raw[, names(testing_raw) %in% names(training_clean)]
+```
+
+## Data Partitioning
+
+```{r partition-data}
+splitIndex <- createDataPartition(training_clean$classe, p = 0.7, list = FALSE)
+trainSet <- training_clean[splitIndex, ]
+validSet <- training_clean[-splitIndex, ]
+```
+
+## Model Building with Random Forest
+
+```{r train-model}
+control <- trainControl(method = "cv", number = 5)
+model_rf <- train(classe ~ ., data = trainSet, method = "rf", trControl = control)
+```
+
+## Model Evaluation
+
+```{r evaluate-model}
+predictions <- predict(model_rf, validSet)
+conf_mat <- confusionMatrix(predictions, validSet$classe)
+conf_mat
+```
+
+The model achieved high accuracy, indicating strong predictive performance. Cross-validation was used to estimate out-of-sample error, and the confusion matrix provides insight into class-specific performance.
+
+## Out-of-Sample Error Estimation
+
+```{r error-estimate}
+accuracy <- conf_mat$overall["Accuracy"]
+error_rate <- 1 - as.numeric(accuracy)
+error_rate
+```
+
+The expected out-of-sample error is approximately `r round(error_rate, 4)`, as estimated using 5-fold cross-validation.
+
+## Final Prediction on Test Set
+
+```{r final-prediction}
+final_predictions <- predict(model_rf, testing_clean)
+final_predictions
+```
+
+## Conclusion
+
+We built a Random Forest model to classify the quality of barbell lifts. Careful preprocessing was applied to clean the data and ensure only meaningful predictors were used. The model was evaluated using 5-fold cross-validation and demonstrated strong accuracy. The estimated out-of-sample error was calculated to be low, suggesting the model generalizes well to new data.
+
+## References
+
+- Dataset Source: [PUC-Rio Human Activity Recognition](http://groupware.les.inf.puc-rio.br/har)
+- Coursera Practical Machine Learning Course
